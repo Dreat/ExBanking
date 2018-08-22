@@ -32,7 +32,7 @@ defmodule ExBanking.UserWallet do
         err -> {:reply, err, state}
       end
     else
-      {:reply, :not_enough_money, state}
+      {:reply, {:error, :not_enough_money}, state}
     end
   end
 
@@ -56,8 +56,8 @@ defmodule ExBanking.UserWallet do
         case check_if_user_exists(to_user) do
           :ok ->
             case withdraw(from_user, amount, currency) do
-              :not_enough_money ->
-                :not_enough_money
+              {:error, :not_enough_money} ->
+                {:error, :not_enough_money}
 
               {:ok, from_user_new_balance} ->
                 {:ok, to_user_new_balance} = deposit(to_user, amount, currency)
@@ -65,11 +65,11 @@ defmodule ExBanking.UserWallet do
             end
 
           _ ->
-            :receiver_does_not_exist
+            {:error, :receiver_does_not_exist}
         end
 
       _ ->
-        :sender_does_not_exist
+        {:error, :sender_does_not_exist}
     end
   end
 
@@ -82,7 +82,7 @@ defmodule ExBanking.UserWallet do
 
   defp try_withdraw(state, amount, currency) do
     cond do
-      state[currency] - amount < 0 -> :not_enough_money
+      state[currency] - amount < 0 -> {:error, :not_enough_money}
       true -> {:ok, %{state | currency => state[currency] - amount}}
     end
   end
@@ -100,7 +100,7 @@ defmodule ExBanking.UserWallet do
 
   defp check_if_user_exists(user) do
     case :global.whereis_name(user) do
-      :undefined -> :user_does_not_exist
+      :undefined -> {:error, :user_does_not_exist}
       _ -> :ok
     end
   end

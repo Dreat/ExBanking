@@ -30,7 +30,7 @@ defmodule ExBanking do
   def create_user(user) do
     case Wallet.start_link(user) do
       {:ok, _pid} -> :ok
-      _ -> :user_already_exists
+      _ -> {:error, :user_already_exists}
     end
   end
 
