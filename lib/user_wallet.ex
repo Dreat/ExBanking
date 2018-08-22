@@ -2,8 +2,11 @@ defmodule ExBanking.UserWallet do
   use GenServer
 
   @decimal_precision 2
+  @ets_table_name :users
+  # @max_requests_per_user 10
 
   def start_link(user) do
+    create_user_counter(user)
     GenServer.start_link(__MODULE__, %{}, name: {:global, user})
   end
 
@@ -37,8 +40,11 @@ defmodule ExBanking.UserWallet do
   end
 
   def deposit(user, amount, currency) do
-    case check_if_user_exists(user) do
-      :ok -> GenServer.call({:global, user}, {:deposit, amount, currency})
+    with :ok <- check_if_user_exists(user),
+         {:ok, new_balance} <- GenServer.call({:global, user}, {:deposit, amount, currency}) do
+      :timer.sleep(10_000)
+      {:ok, new_balance}
+    else
       err -> err
     end
   end
@@ -56,12 +62,12 @@ defmodule ExBanking.UserWallet do
         case check_if_user_exists(to_user) do
           :ok ->
             case withdraw(from_user, amount, currency) do
-              {:error, :not_enough_money} ->
-                {:error, :not_enough_money}
-
               {:ok, from_user_new_balance} ->
                 {:ok, to_user_new_balance} = deposit(to_user, amount, currency)
                 {:ok, from_user_new_balance, to_user_new_balance}
+
+              err ->
+                err
             end
 
           _ ->
@@ -104,4 +110,35 @@ defmodule ExBanking.UserWallet do
       _ -> :ok
     end
   end
+
+  defp create_user_counter(user) do
+    unless ets_table_exist?(@ets_table_name) do
+      :ets.new(@ets_table_name, [:public, :set, :named_table])
+    end
+
+    :ets.insert(@ets_table_name, {user, 0})
+  end
+
+  defp ets_table_exist?(table_name) do
+    case :ets.info(table_name) do
+      :undefined -> false
+      _ -> true
+    end
+  end
+
+  # defp check_user_requests_number(user) do
+  #   [{_, counter}] = :ets.match_object(@ets_table_name, {user, :_})
+
+  #   if counter >= @max_requests_per_user do
+  #     {:error, :too_many_requests_to_user}
+  #   else
+  #     :ets.insert(@ets_table_name, {user, counter + 1})
+  #     :ok
+  #   end
+  # end
+
+  # defp decrement_user_requests_counter(user) do
+  #   [{_, counter}] = :ets.match_object(@ets_table_name, {user, :_})
+  #   :ets.insert(@ets_table_name, {user, counter - 1})
+  # end
 end
